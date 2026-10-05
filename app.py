@@ -13,22 +13,14 @@ if GEMINI_API_KEY:
 else:
     st.warning("Gemini API Key add kijiye settings me.")
 
-# Function to automatically pick available working model
-def get_working_model():
-    try:
-        for m in genai.list_models():
-            if "generateContent" in m.supported_generation_methods:
-                return genai.GenerativeModel(m.name)
-    except Exception:
-        pass
-    return genai.GenerativeModel("gemini-1.5-flash")
+MODEL_NAME = "gemini-3.8-flash"
 
 st.subheader("🗣️ Business Briefing & Voice Host")
 if st.button("🎙 Daily Morning Briefing", use_container_width=True):
     if GEMINI_API_KEY:
         try:
             with st.spinner("AI Briefing taiyar ho rahi hai..."):
-                model = get_working_model()
+                model = genai.GenerativeModel(MODEL_NAME)
                 prompt = """
                 Aap FARINEA Jewellery brand ke executive AI business partner hain.
                 User ko ek real meeting host ki tarah warm aur confident tone me 3-4 sentences me morning briefing dijiye Hindi me.
@@ -64,7 +56,7 @@ if uploaded_image:
         if GEMINI_API_KEY:
             with st.spinner("Meesho SEO listing ban rahi hai..."):
                 try:
-                    model = get_working_model()
+                    model = genai.GenerativeModel(MODEL_NAME)
                     prompt = f"""
                     Is jewellery photo ko analyse karke Meesho listing ready kijiye:
                     1. Product Title (Meesho SEO friendly)
