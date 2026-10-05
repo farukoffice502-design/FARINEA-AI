@@ -13,28 +13,39 @@ if GEMINI_API_KEY:
 else:
     st.warning("Gemini API Key add kijiye settings me.")
 
+# Function to automatically pick available working model
+def get_working_model():
+    try:
+        for m in genai.list_models():
+            if "generateContent" in m.supported_generation_methods:
+                return genai.GenerativeModel(m.name)
+    except Exception:
+        pass
+    return genai.GenerativeModel("gemini-1.5-flash")
+
 st.subheader("🗣️ Business Briefing & Voice Host")
-if st.button("🎙️️ Daily Morning Briefing", use_container_width=True):
+if st.button("🎙 Daily Morning Briefing", use_container_width=True):
     if GEMINI_API_KEY:
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            prompt = """
-            Aap FARINEA Jewellery brand ke executive AI business partner hain.
-            User ko ek real meeting host ki tarah warm aur confident tone me 3-4 sentences me morning briefing dijiye Hindi me.
-            Batayein ki aaj ke orders aur inventory review ke liye ready hain.
-            """
-            response = model.generate_content(prompt)
-            st.success(response.text)
-            
-            clean_text = response.text.replace("\n", " ").replace('"', "'")
-            audio_html = f"""
-            <script>
-            let utterance = new SpeechSynthesisUtterance("{clean_text}");
-            utterance.lang = 'hi-IN';
-            window.speechSynthesis.speak(utterance);
-            </script>
-            """
-            st.components.v1.html(audio_html, height=0)
+            with st.spinner("AI Briefing taiyar ho rahi hai..."):
+                model = get_working_model()
+                prompt = """
+                Aap FARINEA Jewellery brand ke executive AI business partner hain.
+                User ko ek real meeting host ki tarah warm aur confident tone me 3-4 sentences me morning briefing dijiye Hindi me.
+                Batayein ki aaj ke orders aur inventory review ke liye ready hain.
+                """
+                response = model.generate_content(prompt)
+                st.success(response.text)
+                
+                clean_text = response.text.replace("\n", " ").replace('"', "'")
+                audio_html = f"""
+                <script>
+                let utterance = new SpeechSynthesisUtterance("{clean_text}");
+                utterance.lang = 'hi-IN';
+                window.speechSynthesis.speak(utterance);
+                </script>
+                """
+                st.components.v1.html(audio_html, height=0)
         except Exception as e:
             st.error(f"Error: {e}")
 
@@ -53,7 +64,7 @@ if uploaded_image:
         if GEMINI_API_KEY:
             with st.spinner("Meesho SEO listing ban rahi hai..."):
                 try:
-                    model = genai.GenerativeModel("gemini-1.5-flash")
+                    model = get_working_model()
                     prompt = f"""
                     Is jewellery photo ko analyse karke Meesho listing ready kijiye:
                     1. Product Title (Meesho SEO friendly)
