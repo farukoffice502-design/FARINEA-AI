@@ -24,7 +24,8 @@ if GEMINI_API_KEY:
 else:
     st.warning("Gemini API Key add kijiye settings me.")
 
-MODEL_NAME = "gemini-3.8-flash"
+# High free-tier quota model
+MODEL_NAME = "gemini-2.5-flash"
 
 def speak_text(text):
     clean_text = text.replace("\n", " ").replace('"', "'")
