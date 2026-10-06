@@ -24,8 +24,8 @@ if GEMINI_API_KEY:
 else:
     st.warning("Gemini API Key add kijiye settings me.")
 
-# High free-tier quota model
-MODEL_NAME = "gemini-2.5-flash"
+# Active Gemini 3.8 Flash model
+MODEL_NAME = "gemini-3.8-flash"
 
 def speak_text(text):
     clean_text = text.replace("\n", " ").replace('"', "'")
@@ -105,7 +105,7 @@ if st.button("🎙 Daily Morning Briefing", use_container_width=True):
 
 # 2. Voice Assistant & Sheet Updater
 st.write("---")
-st.subheader("🎙️ FARINEA Voice Assistant (Direct Baat & Update Karein)")
+st.subheader("🎙️️ FARINEA Voice Assistant (Direct Baat & Update Karein)")
 st.caption("Aap mic se bolkar ya type karke sawal pooch sakte hain ya Sheet me item add karwa sakte hain.")
 user_query = st.chat_input("Boliye ya type kijiye (e.g. 'Choker Necklace stock 15 piece add kar do')...")
 
