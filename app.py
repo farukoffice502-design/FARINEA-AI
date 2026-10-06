@@ -5,6 +5,8 @@ from PIL import Image
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import requests
+import json
 
 st.set_page_config(page_title="FARINEA Master AI", page_icon="💎", layout="centered")
 
@@ -15,6 +17,7 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 GMAIL_USER = st.secrets.get("GMAIL_USER", "")
 GMAIL_APP_PASSWORD = st.secrets.get("GMAIL_APP_PASSWORD", "")
 SHEET_URL = st.secrets.get("SHEET_URL", "")
+SHEET_WEBHOOK_URL = st.secrets.get("SHEET_WEBHOOK_URL", "")
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -36,22 +39,33 @@ def speak_text(text):
 
 def get_sheet_summary():
     if not SHEET_URL:
-        return "Google Sheet link abhi set nahi hai. Normal checklist data ready hai."
+        return "Google Sheet link abhi set nahi hai."
     try:
-        # Sheet link ko CSV format me convert karke live rows read karna
         if "/edit" in SHEET_URL:
             csv_url = SHEET_URL.split("/edit")[0] + "/export?format=csv"
         else:
             csv_url = SHEET_URL
         df = pd.read_csv(csv_url)
-        summary = f"Total Items/Rows: {len(df)}\nColumns: {', '.join(df.columns)}\nTop Data Preview:\n{df.head(5).to_string(index=False)}"
+        summary = f"Columns: {', '.join(df.columns)}\nTotal Rows: {len(df)}\nRecent Data:\n{df.tail(5).to_string(index=False)}"
         return summary
     except Exception as e:
         return f"Sheet load error: {e}"
 
+def update_google_sheet(row_data):
+    if not SHEET_WEBHOOK_URL:
+        return False, "Secrets me SHEET_WEBHOOK_URL missing hai."
+    try:
+        payload = {"action": "append", "row": row_data}
+        res = requests.post(SHEET_WEBHOOK_URL, json=payload, timeout=10)
+        if res.status_code == 200:
+            return True, "Google Sheet me data successfully add ho gaya!"
+        return False, f"Status: {res.status_code}"
+    except Exception as e:
+        return False, str(e)
+
 def send_real_email(subject, body):
     if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-        return False, "Secrets me GMAIL_USER aur GMAIL_APP_PASSWORD add kijiye."
+        return False, "Secrets me GMAIL_USER aur GMAIL_APP_PASSWORD missing hai."
     try:
         msg = MIMEMultipart()
         msg['From'] = GMAIL_USER
@@ -67,7 +81,7 @@ def send_real_email(subject, body):
     except Exception as e:
         return False, str(e)
 
-# 1. Voice Host & Morning Briefing (Google Sheet Linked)
+# 1. Voice Host & Morning Briefing
 st.subheader("🗣️ Business Briefing & Voice Host")
 if st.button("🎙 Daily Morning Briefing", use_container_width=True):
     if GEMINI_API_KEY:
@@ -76,13 +90,9 @@ if st.button("🎙 Daily Morning Briefing", use_container_width=True):
                 sheet_data = get_sheet_summary()
                 model = genai.GenerativeModel(MODEL_NAME)
                 prompt = f"""
-                Aap FARINEA Jewellery brand ke executive AI business partner hain.
-                Neeche diye Google Sheet ke live data ko dhyan se dekhiye aur meeting host ki tarah 3-4 clear Hindi sentences me professional morning briefing boliye:
-                
-                Live Sheet Data:
+                Aap FARINEA Jewellery brand ke AI partner hain.
+                Live Sheet Data dekh kar meeting host ki tarah 3-4 clear Hindi sentences me professional morning briefing dijiye:
                 {sheet_data}
-                
-                Stock, orders aur priority par baat karein.
                 """
                 response = model.generate_content(prompt)
                 st.session_state['last_briefing'] = response.text
@@ -92,33 +102,58 @@ if st.button("🎙 Daily Morning Briefing", use_container_width=True):
         except Exception as e:
             st.error(f"Error: {e}")
 
-# 2. Voice Input / Direct Baat Karein
+# 2. Voice Assistant & Sheet Updater
 st.write("---")
-st.subheader("🎙️ FARINEA Voice Assistant (Direct Baat Karein)")
-st.caption("Aap keyboard mic se bolkar ya type karke sawaal pooch sakte hain.")
-user_query = st.chat_input("Google Sheet ya business ke baare me sawaal poochein...")
+st.subheader("🎙️ FARINEA Voice Assistant (Direct Baat & Update Karein)")
+st.caption("Aap mic se bolkar ya type karke sawal pooch sakte hain ya Sheet me item add karwa sakte hain.")
+user_query = st.chat_input("Boliye ya type kijiye (e.g. 'Choker Necklace stock 15 piece add kar do')...")
 
 if user_query:
     if GEMINI_API_KEY:
         try:
-            with st.spinner("Sheet data check ho raha hai..."):
+            with st.spinner("FARINEA AI process kar raha hai..."):
                 sheet_data = get_sheet_summary()
                 model = genai.GenerativeModel(MODEL_NAME)
-                chat_prompt = f"""
-                User question: {user_query}
-                Aapke paas FARINEA ki Google Sheet ka data ye hai:
+                
+                classify_prompt = f"""
+                User command: "{user_query}"
+                Available Sheet info & Columns:
                 {sheet_data}
                 
-                Is data ke aadhar par user ko Hindi me short aur seedha jawab dijiye.
+                Identify if the user wants to ADD or UPDATE an entry in the sheet, OR if they are just asking a QUESTION.
+                If they want to ADD/UPDATE:
+                Provide a JSON response with:
+                - "is_update": true
+                - "row_values": a list of string values corresponding to the columns of the sheet.
+                - "reply": a short confirmation message in Hindi.
+                
+                If it is just a question:
+                - "is_update": false
+                - "row_values": []
+                - "reply": helpful Hindi answer based on sheet data or jewellery business.
+                
+                Return ONLY valid JSON, nothing else.
                 """
-                ans = model.generate_content(chat_prompt)
+                res = model.generate_content(classify_prompt)
+                clean_json = res.text.strip().replace("```json", "").replace("```", "")
+                parsed = json.loads(clean_json)
+                
+                if parsed.get("is_update"):
+                    success, msg = update_google_sheet(parsed.get("row_values", []))
+                    if success:
+                        reply_msg = f"{parsed.get('reply')} (✅ Sheet me update ho gaya!)"
+                    else:
+                        reply_msg = f"Sheet update karne me error aaya: {msg}"
+                else:
+                    reply_msg = parsed.get("reply")
+                
                 st.write(f"**Aap:** {user_query}")
-                st.success(f"**FARINEA AI:** {ans.text}")
-                speak_text(ans.text)
+                st.success(f"**FARINEA AI:** {reply_msg}")
+                speak_text(reply_msg)
         except Exception as e:
             st.error(f"Error: {e}")
 
-# 3. Meesho Studio
+# 3. Meesho Catalog Studio
 st.write("---")
 st.subheader("📦 Meesho Catalog Studio")
 uploaded_image = st.file_uploader("Jewellery Photo Upload Karein", type=["jpg", "png", "jpeg"])
